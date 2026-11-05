@@ -40,6 +40,8 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
       const events = f.events?.nodes || [];
       const latest = events[0] || null; // sorted newest first
       if (f.displayStatus === "DELIVERED" || latest?.status === "DELIVERED") continue;
+      // Refused / returned more than 3 days ago: final, stop checking.
+      if (latest?.status === "FAILURE" && Date.now() - Date.parse(latest.happenedAt) > 3 * 86400_000) continue;
       const t = (f.trackingInfo || []).find((x) => x.number);
       if (!t) continue;
       const courier = detectCourier(t.company || "", t.number);

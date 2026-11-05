@@ -54,7 +54,7 @@ test("key mappings", () => {
 });
 
 test("cargus html parsing (real page)", () => {
-  const p = parseCargusHtml(readFileSync(fx("cargus-delivered.html"), "utf8"), "1210649374");
+  const p = parseCargusHtml(readFileSync(fx("cargus-delivered.html"), "utf8"), "1299990001");
   assert.ok(p.ok);
   assert.equal(p.events[0].text, "Livrat la destinatar (confirmat)");
   assert.equal(p.events[0].happenedAt, "2026-10-30T09:10:00.000Z");
@@ -68,16 +68,16 @@ test("Romania local time -> UTC, summer and winter", () => {
 });
 
 test("courier detection", () => {
-  assert.equal(detectCourier("FAN RO", "7000178258145"), "fan");
-  assert.equal(detectCourier("SameDay", "1INOLN551324365"), "sameday");
-  assert.equal(detectCourier("Cargus RO", "1211008994"), "cargus");
-  assert.equal(detectCourier("", "7000178258145"), "fan");
-  assert.equal(detectCourier("", "1INOLN551324365"), "sameday");
-  assert.equal(detectCourier("", "1211008994"), "cargus");
+  assert.equal(detectCourier("FAN RO", "7000123456789"), "fan");
+  assert.equal(detectCourier("SameDay", "1TESTXX0000001"), "sameday");
+  assert.equal(detectCourier("Cargus RO", "1200000099"), "cargus");
+  assert.equal(detectCourier("", "7000123456789"), "fan");
+  assert.equal(detectCourier("", "1TESTXX0000001"), "sameday");
+  assert.equal(detectCourier("", "1200000099"), "cargus");
 });
 
 test("FAN tracker parses API response and 404 'not picked up'", async () => {
-  const ok = await trackFan("7000178258145", { fetchImpl: async () => new Response(JSON.stringify({ events: [{ id: "S2", name: "Livrat", location: "Bucuresti", date: "2026-11-05 11:48:59" }] }), { status: 200 }) });
+  const ok = await trackFan("7000123456789", { fetchImpl: async () => new Response(JSON.stringify({ events: [{ id: "S2", name: "Livrat", location: "Bucuresti", date: "2026-11-05 11:48:59" }] }), { status: 200 }) });
   assert.deepEqual(ok.events[0], { code: "S2", text: "Livrat", city: "Bucuresti", happenedAt: "2026-11-05T09:48:59.000Z" });
   const nf = await trackFan("1", { fetchImpl: async () => new Response(JSON.stringify({ message: "AWB-ul a fost inregistrat de catre clientul expeditor" }), { status: 404 }) });
   assert.equal(nf.notPickedUp, true);
