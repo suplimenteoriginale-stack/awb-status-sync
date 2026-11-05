@@ -97,11 +97,12 @@ test("Sameday tracker sorts history oldest -> newest", async () => {
 
 // ---- end-to-end sync logic with fake Shopify + fake couriers ----
 function fakeShopify(orders) {
-  const created = [];
+  const created = [], links = [];
   return {
-    created,
+    created, links,
     async *shippedOrders() { for (const o of orders) yield o; },
     async createEvent(e) { created.push(e); return { id: "x", ...e }; },
+    async updateTracking(id, t) { links.push([id, t.url]); },
   };
 }
 const ful = (id, company, number, events = [], extra = {}) => ({ id, status: "SUCCESS", displayStatus: events[0]?.status || "FULFILLED", createdAt: "2026-11-01T10:00:00Z", trackingInfo: [{ company, number }], events: { nodes: events }, ...extra });
@@ -157,7 +158,7 @@ test("sync: never goes back in time over a newer Shopify event", async () => {
 test("sync: stops the whole run on a permission error", async () => {
   const orders = [1, 2, 3].map((i) => ({ name: `#D${i}`, fulfillments: [ful(`F${i}`, "SameDay", `1INOLN00000000${i}`)] }));
   let writes = 0;
-  const shopify = { async *shippedOrders() { for (const o of orders) yield o; }, async createEvent() { writes++; throw new Error('Shopify GraphQL: [{"extensions":{"code":"ACCESS_DENIED"}}]'); } };
+  const shopify = { async *shippedOrders() { for (const o of orders) yield o; }, async createEvent() { writes++; throw new Error('Shopify GraphQL: [{"extensions":{"code":"ACCESS_DENIED"}}]'); }, async updateTracking() {} };
   const track = async () => ({ ok: true, events: [{ code: "5", text: "Livrat", happenedAt: "2026-11-05T09:00:00.000Z" }] });
   await assert.rejects(run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } }), /permisiuni/);
   assert.equal(writes, 1);
@@ -171,4 +172,23 @@ test("FAN S8 (ridicare din sediu) and Cargus empty page = not picked up", async 
   const orig = global.setTimeout; global.setTimeout = (f) => orig(f, 0);
   try { const r = await track("cargus", "1211507180"); assert.equal(r.ok, true); assert.equal(r.notPickedUp, true); }
   finally { global.setTimeout = orig; }
+});
+
+test("sync: replaces orders-tracker.com links with the courier page, leaves correct ones alone", async () => {
+  const mk = (id, company, number, url, events = []) => ({ ...ful(id, company, number, events), trackingInfo: [{ company, number, url }] });
+  const orders = [
+    { name: "#L1", fulfillments: [mk("L1", "FAN RO", "7000179087693", "https://orders-tracker.com/?wb=7000179087693")] },
+    { name: "#L2", fulfillments: [mk("L2", "SameDay", "1INOLN551831793", "https://orders-tracker.com/?wb=1INOLN551831793")] },
+    { name: "#L3", fulfillments: [mk("L3", "Cargus RO", "1211507079", "https://orders-tracker.com/?wb=1211507079", [{ status: "DELIVERED", happenedAt: "2026-11-03T08:00:00Z" }])] },
+    { name: "#L4", fulfillments: [mk("L4", "FAN RO", "7000000000009", "https://www.fancourier.ro/awb-tracking/?tracking=7000000000009")] },
+  ];
+  const shopify = fakeShopify(orders);
+  const track = async () => ({ ok: true, events: [], notPickedUp: true });
+  const { stats } = await run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
+  assert.deepEqual(shopify.links, [
+    ["L1", "https://www.fancourier.ro/awb-tracking/?tracking=7000179087693"],
+    ["L2", "https://sameday.ro/status-colet/?awb=1INOLN551831793"],
+    ["L3", "https://www.cargus.ro/personal/urmareste-coletul/?tracking_number=1211507079"], // fixed even when delivered
+  ]);
+  assert.equal(stats.linksFixed, 3);
 });

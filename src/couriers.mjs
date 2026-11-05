@@ -165,3 +165,10 @@ export function createTracker({ fetchImpl = fetch, gaps = GAP_MS, log = console 
     return result;
   };
 }
+
+// Public tracking page of each courier (what customers should see instead of orders-tracker.com).
+export const TRACKING_URL = {
+  fan: (awb) => `https://www.fancourier.ro/awb-tracking/?tracking=${encodeURIComponent(awb)}`,
+  sameday: (awb) => `https://sameday.ro/status-colet/?awb=${encodeURIComponent(awb)}`,
+  cargus: (awb) => `https://www.cargus.ro/personal/urmareste-coletul/?tracking_number=${encodeURIComponent(awb)}`,
+};

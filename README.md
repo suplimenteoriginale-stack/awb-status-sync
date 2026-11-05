@@ -60,3 +60,7 @@ npm test                                       # teste pe 110 AWB-uri reale (fix
 - Sursele sunt paginile publice ale curierilor. Dacă un curier își schimbă pagina, rularea raportează erori și acel curier trebuie actualizat în `src/couriers.mjs`.
 - Pagina Cargus arată doar ultimul status, cu ora rotunjită.
 - Comenzile mai vechi de 20 de zile nu mai sunt verificate.
+
+## Link de urmărire
+
+La fiecare rulare, aplicația verifică și link-ul de urmărire al fiecărei expediții din ultimele 20 de zile. Dacă depozitul a pus alt link (de ex. orders-tracker.com), îl înlocuiește cu pagina curierului (FAN, Sameday, Cargus), fără să trimită email clientului.

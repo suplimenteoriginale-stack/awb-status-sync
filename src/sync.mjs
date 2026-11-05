@@ -2,7 +2,7 @@
 // Run: node src/sync.mjs            (env vars: see README)
 import { appendFileSync } from "node:fs";
 import { createShopify } from "./shopify.mjs";
-import { createTracker, detectCourier } from "./couriers.mjs";
+import { createTracker, detectCourier, TRACKING_URL } from "./couriers.mjs";
 import { mapEvent } from "./mapping.mjs";
 
 const env = process.env;
@@ -26,9 +26,29 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
   shopify ||= createShopify({ shop: cfg.shop, token: cfg.token, clientId: cfg.clientId, clientSecret: cfg.clientSecret });
   track ||= createTracker({ log: out });
   const since = new Date(Date.now() - cfg.lookbackDays * 86400_000).toISOString().slice(0, 10);
-  const stats = { orders: 0, candidates: 0, checked: 0, created: 0, unchanged: 0, notPickedUp: 0, errors: 0, skippedTime: 0, byStatus: {} };
+  const stats = { orders: 0, candidates: 0, checked: 0, created: 0, unchanged: 0, notPickedUp: 0, errors: 0, skippedTime: 0, linksFixed: 0, byStatus: {} };
   const unknown = new Map();
   const changes = [];
+
+  // 0) Replace the warehouse's tracking link (orders-tracker.com etc.) with the courier's own page.
+  async function fixTrackingLink(order, f) {
+    const t = (f.trackingInfo || []).find((x) => x.number);
+    if (!t) return;
+    const courier = detectCourier(t.company || "", t.number);
+    if (!courier) return;
+    const awb = t.number.trim();
+    const want = TRACKING_URL[courier](awb);
+    if ((t.url || "") === want) return;
+    if (cfg.dryRun) { out.log(`~ ${order.name} link: ${t.url} -> ${want} [DRY RUN]`); stats.linksFixed++; return; }
+    try {
+      await shopify.updateTracking(f.id, { company: t.company, number: awb, url: want });
+      t.url = want;
+      stats.linksFixed++;
+      out.log(`~ ${order.name} link ${COURIER_LABEL[courier]} corectat`);
+    } catch (e) {
+      stats.errors++; out.warn(`! ${order.name} link: ${e.message}`);
+    }
+  }
 
   // 1) Collect fulfillments that are shipped but not yet delivered.
   const queues = { fan: [], sameday: [], cargus: [] };
@@ -37,6 +57,7 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
     if (cfg.onlyOrders.length && !cfg.onlyOrders.includes(order.name.replace(/^#/, ""))) continue;
     for (const f of order.fulfillments) {
       if (f.status !== "SUCCESS") continue;
+      await fixTrackingLink(order, f);
       const events = f.events?.nodes || [];
       const latest = events[0] || null; // sorted newest first
       if (f.displayStatus === "DELIVERED" || latest?.status === "DELIVERED") continue;
@@ -121,7 +142,7 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
     throw new Error(`Oprit: Shopify refuza scrierea (permisiuni lipsa?). ${fatal.message}`);
   }
 
-  out.log(`\nGata in ${Math.round((Date.now() - startedAt) / 1000)}s. Verificate ${stats.checked}/${stats.candidates}, actualizate ${stats.created}, neschimbate ${stats.unchanged}, nepreluate de curier ${stats.notPickedUp}, erori ${stats.errors}, amanate (timp) ${stats.skippedTime}.`);
+  out.log(`\nGata in ${Math.round((Date.now() - startedAt) / 1000)}s. Verificate ${stats.checked}/${stats.candidates}, actualizate ${stats.created}, neschimbate ${stats.unchanged}, nepreluate de curier ${stats.notPickedUp}, erori ${stats.errors}, amanate (timp) ${stats.skippedTime}, linkuri corectate ${stats.linksFixed}.`);
   if (Object.keys(stats.byStatus).length) out.log(`Statusuri noi: ${JSON.stringify(stats.byStatus)}`);
   if (unknown.size) {
     out.log(`\nStatusuri necunoscute (ignorate, de adaugat in mapping.mjs):`);

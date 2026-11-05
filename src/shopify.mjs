@@ -55,7 +55,7 @@ export function createShopify({ shop, token, clientId, clientSecret, fetchImpl =
           id name createdAt
           fulfillments(first: 5) {
             id status displayStatus createdAt deliveredAt
-            trackingInfo(first: 3) { company number }
+            trackingInfo(first: 3) { company number url }
             events(first: 50, sortKey: HAPPENED_AT, reverse: true) { nodes { status happenedAt } }
           }
         }
@@ -82,7 +82,19 @@ export function createShopify({ shop, token, clientId, clientSecret, fetchImpl =
     return d.fulfillmentEventCreate.fulfillmentEvent;
   }
 
-  return { graphql, shippedOrders, createEvent };
+  async function updateTracking(fulfillmentId, info) {
+    const m = `mutation($id: ID!, $t: FulfillmentTrackingInput!) {
+      fulfillmentTrackingInfoUpdate(fulfillmentId: $id, trackingInfoInput: $t, notifyCustomer: false) {
+        fulfillment { id }
+        userErrors { field message }
+      }
+    }`;
+    const d = await graphql(m, { id: fulfillmentId, t: info });
+    const errs = d.fulfillmentTrackingInfoUpdate.userErrors;
+    if (errs?.length) throw new Error(`fulfillmentTrackingInfoUpdate: ${JSON.stringify(errs)}`);
+  }
+
+  return { graphql, shippedOrders, createEvent, updateTracking };
 }
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
