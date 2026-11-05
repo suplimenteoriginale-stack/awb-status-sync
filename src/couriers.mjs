@@ -116,7 +116,7 @@ export async function trackCargus(awb, { fetchImpl = fetch } = {}) {
 
 export function parseCargusHtml(html, awb) {
   const i = html.indexOf("Detalii de tracking");
-  if (i < 0) return { ok: false, retryable: true, error: "Cargus fara rezultat (pagina goala)" };
+  if (i < 0) return { ok: false, retryable: true, emptyPage: true, error: "Cargus fara rezultat (pagina goala)" };
   let seg = html.slice(i, i + 5000);
   const bar = seg.match(/width:\s*(\d+)%/);
   seg = seg.replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<script[\s\S]*?<\/script>/gi, " ");
@@ -156,6 +156,8 @@ export function createTracker({ fetchImpl = fetch, gaps = GAP_MS, log = console 
       last[courier] = Date.now();
       result = await fn(awb, { fetchImpl });
       if (result.ok || !result.retryable) return result;
+      // Cargus shows an empty page (no "not found" message) for AWBs it has not picked up yet.
+      if (courier === "cargus" && result.emptyPage && attempt >= 2) return { ok: true, events: [], notPickedUp: true, note: "Cargus: fara date (probabil nepreluat inca)" };
       const backoff = result.rateLimited ? 60_000 : 4000 * (attempt + 1);
       log.warn?.(`  ${courier} ${awb}: ${result.error} -> reincerc in ${backoff / 1000}s`);
       await sleep(backoff);

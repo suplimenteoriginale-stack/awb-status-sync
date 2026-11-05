@@ -162,3 +162,13 @@ test("sync: stops the whole run on a permission error", async () => {
   await assert.rejects(run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } }), /permisiuni/);
   assert.equal(writes, 1);
 });
+
+test("FAN S8 (ridicare din sediu) and Cargus empty page = not picked up", async () => {
+  assert.equal(mapEvent("fan", { code: "S8", text: "Livrare din sediul FAN Courier" }), "READY_FOR_PICKUP");
+  const { createTracker } = await import("../src/couriers.mjs");
+  const track = createTracker({ gaps: { fan: 0, sameday: 0, cargus: 0 }, log: { warn() {} },
+    fetchImpl: async () => new Response("<html>Te rugam sa introduci numarul</html>", { status: 200 }) });
+  const orig = global.setTimeout; global.setTimeout = (f) => orig(f, 0);
+  try { const r = await track("cargus", "1211507180"); assert.equal(r.ok, true); assert.equal(r.notPickedUp, true); }
+  finally { global.setTimeout = orig; }
+});

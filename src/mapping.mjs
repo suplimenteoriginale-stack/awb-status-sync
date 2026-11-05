@@ -14,6 +14,7 @@ const FAN_CODES = {
   S3: "ATTEMPTED_DELIVERY", // Avizat
   S12: "ATTEMPTED_DELIVERY", // Contactat; livrare ulterioara
   S46: "READY_FOR_PICKUP", // Predat punct livrare (FANbox / Collect Point)
+  S8: "READY_FOR_PICKUP", // Livrare din sediul FAN Courier (ridicare de la sediu)
   S6: "FAILURE", // Refuz primire
   S43: "FAILURE", // Retur
   S9: "IN_TRANSIT", // Redirectionat
@@ -45,7 +46,7 @@ export function byKeywords(text) {
   if (/retur|refuz|anulat|distrus|pierdut|returnat|expirat/.test(t)) return "FAILURE";
   if (/\blivrat\b|livrat la destinatar|livrat cu succes|livrata/.test(t)) return "DELIVERED";
   if (/avizat|absent|nu raspunde|adresa (gresita|incompleta)|amanat|ulterioar|reprogramat|nu a putut fi livrat/.test(t)) return "ATTEMPTED_DELIVERY";
-  if (/se asteapta ridicarea|ridicare de la sediu|punct de livrare|punctul de livrare|fanbox|easybox|ship ?& ?go|collect point|predat punct/.test(t)) return "READY_FOR_PICKUP";
+  if (/se asteapta ridicarea|ridicare de la sediu|din sediul|punct de livrare|punctul de livrare|fanbox|easybox|ship ?& ?go|collect point|predat punct/.test(t)) return "READY_FOR_PICKUP";
   if (/in livrare|spre destinatar|preluata spre livrare|urmeaza sa efectueze livrarea|ruta curier/.test(t)) return "OUT_FOR_DELIVERY";
   if (/colectat|preluat de la expeditor|intrat in posesia/.test(t)) return "CARRIER_PICKED_UP";
   if (/tranzit|depozit|sortat|hub|descarcat|redirectionat|iesire din/.test(t)) return "IN_TRANSIT";
