@@ -1,0 +1,13 @@
+{
+  "name": "awb-status-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sincronizeaza statusurile de livrare FAN Courier, Sameday si Cargus in Shopify (provitamine.ro)",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "sync": "node src/sync.mjs",
+    "dry": "DRY_RUN=1 node src/sync.mjs",
+    "test": "node --test test/all.test.mjs"
+  }
+}
