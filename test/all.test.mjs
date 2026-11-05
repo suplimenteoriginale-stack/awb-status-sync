@@ -153,3 +153,12 @@ test("sync: never goes back in time over a newer Shopify event", async () => {
   await run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
   assert.equal(shopify.created.length, 0);
 });
+
+test("sync: stops the whole run on a permission error", async () => {
+  const orders = [1, 2, 3].map((i) => ({ name: `#D${i}`, fulfillments: [ful(`F${i}`, "SameDay", `1INOLN00000000${i}`)] }));
+  let writes = 0;
+  const shopify = { async *shippedOrders() { for (const o of orders) yield o; }, async createEvent() { writes++; throw new Error('Shopify GraphQL: [{"extensions":{"code":"ACCESS_DENIED"}}]'); } };
+  const track = async () => ({ ok: true, events: [{ code: "5", text: "Livrat", happenedAt: "2026-11-05T09:00:00.000Z" }] });
+  await assert.rejects(run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } }), /permisiuni/);
+  assert.equal(writes, 1);
+});

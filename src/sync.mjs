@@ -56,8 +56,10 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
   out.log(`Comenzi expediate din ultimele ${cfg.lookbackDays} zile: ${stats.orders}. De verificat: FAN ${queues.fan.length}, Sameday ${queues.sameday.length}, Cargus ${queues.cargus.length}.${cfg.dryRun ? " [DRY RUN]" : ""}`);
 
   // 2) Each courier has its own rate limit, so the three queues run in parallel.
+  let fatal = null;
   async function worker(courier) {
     for (const c of queues[courier]) {
+      if (fatal) break;
       if (timeLeft() < 60_000) { stats.skippedTime++; continue; }
       const res = await track(courier, c.awb);
       stats.checked++;
@@ -100,7 +102,12 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
           await shopify.createEvent(input);
           out.log(`✓ ${line}`);
         } catch (e) {
-          stats.errors++; out.warn(`! ${c.order.name}: ${e.message}`); continue;
+          stats.errors++; out.warn(`! ${c.order.name}: ${e.message}`);
+          if (/ACCESS_DENIED|Invalid API key|401|403/.test(e.message)) {
+            fatal = e; // missing permission: every write will fail, stop instead of hammering couriers
+            break;
+          }
+          continue;
         }
       }
       stats.created++;
@@ -109,6 +116,10 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
     }
   }
   await Promise.all(["fan", "sameday", "cargus"].map(worker));
+  if (fatal) {
+    writeSummary(stats, changes, unknown, cfg);
+    throw new Error(`Oprit: Shopify refuza scrierea (permisiuni lipsa?). ${fatal.message}`);
+  }
 
   out.log(`\nGata in ${Math.round((Date.now() - startedAt) / 1000)}s. Verificate ${stats.checked}/${stats.candidates}, actualizate ${stats.created}, neschimbate ${stats.unchanged}, nepreluate de curier ${stats.notPickedUp}, erori ${stats.errors}, amanate (timp) ${stats.skippedTime}.`);
   if (Object.keys(stats.byStatus).length) out.log(`Statusuri noi: ${JSON.stringify(stats.byStatus)}`);

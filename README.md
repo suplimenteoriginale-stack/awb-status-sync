@@ -39,7 +39,7 @@ Un status nou, necunoscut, nu este scris. Apare în rezumatul rulării, la „St
 ## Instalare (o singură dată)
 
 1. **Aplicație Shopify** – în [Dev Dashboard](https://dev.shopify.com/dashboard), creezi o aplicație „AWB status sync” cu permisiunile:
-   `read_orders, read_merchant_managed_fulfillment_orders, write_merchant_managed_fulfillment_orders, read_third_party_fulfillment_orders, write_third_party_fulfillment_orders`.
+   `read_orders, read_fulfillments, write_fulfillments, read_merchant_managed_fulfillment_orders, write_merchant_managed_fulfillment_orders, read_third_party_fulfillment_orders, write_third_party_fulfillment_orders`.
    Apoi creezi o versiune și o instalezi pe magazinul provitamine.
 2. **Secrete GitHub** – în repo, la Settings → Secrets and variables → Actions → *New repository secret*, adaugi:
    - `SHOPIFY_CLIENT_ID` – Client ID-ul aplicației
