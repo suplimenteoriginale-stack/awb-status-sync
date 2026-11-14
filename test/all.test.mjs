@@ -203,3 +203,11 @@ test("sync: re-labels an existing Ready for pickup at the same time as Out for d
   await run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
   assert.deepEqual(shopify.created.map((e) => e.status), ["OUT_FOR_DELIVERY"]);
 });
+
+test("sync: replaces an old Carrier picked up even if the courier time is earlier", async () => {
+  const orders = [{ name: "#R2", fulfillments: [ful("R2", "Cargus RO", "1200000012", [{ status: "CARRIER_PICKED_UP", happenedAt: "2026-11-13T09:11:00Z" }])] }];
+  const shopify = fakeShopify(orders);
+  const track = async () => ({ ok: true, events: [{ text: "DF Iesire din depozit catre tranzit", happenedAt: "2026-11-13T08:11:00.000Z" }] });
+  await run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
+  assert.deepEqual(shopify.created.map((e) => [e.status, e.happenedAt]), [["IN_TRANSIT", "2026-11-13T09:11:00Z"]]);
+});

@@ -105,7 +105,11 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
       const curTime = cur ? Date.parse(cur.happenedAt) : 0;
       const tgtTime = target.happenedAt ? Date.parse(target.happenedAt) : Date.now();
       if (cur && cur.status === target.status) { stats.unchanged++; continue; }
-      if (cur && tgtTime < curTime) { stats.unchanged++; continue; } // Shopify already has something newer
+      // Statuses written before nov 15 that the Shopify order list doesn't show: always replace them,
+      // stamped no earlier than the old event so the new one becomes the latest.
+      const legacy = cur && ["READY_FOR_PICKUP", "CARRIER_PICKED_UP", "DELAYED"].includes(cur.status);
+      if (cur && tgtTime < curTime && !legacy) { stats.unchanged++; continue; } // Shopify already has something newer
+      if (legacy && tgtTime < curTime) target.happenedAt = cur.happenedAt;
 
       const input = {
         fulfillmentId: c.f.id,
