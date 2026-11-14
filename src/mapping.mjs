@@ -54,7 +54,18 @@ export function byKeywords(text) {
   return undefined;
 }
 
+// Shopify's order list only shows some statuses in the "Delivery status" column; the others
+// (ready for pickup, carrier picked up, delayed) appear there as "Tracking added".
+// So they are written as statuses the list does show (decision of the store owner, nov 2026):
+// pickup point / easybox / ridicare de la sediu -> Out for delivery; picked up and delayed -> In transit.
+const SHOPIFY_VISIBLE = { READY_FOR_PICKUP: "OUT_FOR_DELIVERY", CARRIER_PICKED_UP: "IN_TRANSIT", DELAYED: "IN_TRANSIT" };
+
 export function mapEvent(courier, ev) {
+  const s = mapRaw(courier, ev);
+  return s && Object.hasOwn(SHOPIFY_VISIBLE, s) ? SHOPIFY_VISIBLE[s] : s;
+}
+
+function mapRaw(courier, ev) {
   if (courier === "fan") {
     if (ev.code && Object.hasOwn(FAN_CODES, ev.code)) return FAN_CODES[ev.code];
     if (ev.code && /^H\d+$/.test(ev.code)) return "IN_TRANSIT"; // any hub event

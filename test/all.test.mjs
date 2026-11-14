@@ -39,16 +39,18 @@ test("key mappings", () => {
   assert.equal(mapEvent("fan", { code: "S43", text: "Retur" }), "FAILURE");
   assert.equal(mapEvent("fan", { code: "S6", text: "Refuz primire" }), "FAILURE");
   assert.equal(mapEvent("fan", { code: "S1", text: "Expeditie in livrare" }), "OUT_FOR_DELIVERY");
-  assert.equal(mapEvent("fan", { code: "S46", text: "Predat punct livrare" }), "READY_FOR_PICKUP");
+  assert.equal(mapEvent("fan", { code: "S46", text: "Predat punct livrare" }), "OUT_FOR_DELIVERY");
   assert.equal(mapEvent("fan", { code: "H99", text: "ceva hub nou" }), "IN_TRANSIT");
   assert.equal(mapEvent("sameday", { code: "5" }), "DELIVERED");
-  assert.equal(mapEvent("sameday", { code: "18" }), "READY_FOR_PICKUP");
+  assert.equal(mapEvent("sameday", { code: "18" }), "OUT_FOR_DELIVERY");
+  assert.equal(mapEvent("sameday", { code: "2" }), "IN_TRANSIT");
+  assert.equal(mapEvent("sameday", { code: "20" }), "IN_TRANSIT");
   assert.equal(mapEvent("sameday", { code: "1" }), null);
   assert.equal(mapEvent("cargus", { text: "Livrat la destinatar (confirmat)" }), "DELIVERED");
   assert.equal(mapEvent("cargus", { text: "Expediere returnata: Solicitare Cargus" }), "FAILURE");
-  assert.equal(mapEvent("cargus", { text: "Se asteapta ridicarea coletului de la sediu: Solicitare destinatar" }), "READY_FOR_PICKUP");
+  assert.equal(mapEvent("cargus", { text: "Se asteapta ridicarea coletului de la sediu: Solicitare destinatar" }), "OUT_FOR_DELIVERY");
   assert.equal(mapEvent("cargus", { text: "Spre destinatar" }), "OUT_FOR_DELIVERY");
-  assert.equal(mapEvent("cargus", { text: "Colectata de curier" }), "CARRIER_PICKED_UP");
+  assert.equal(mapEvent("cargus", { text: "Colectata de curier" }), "IN_TRANSIT");
   assert.equal(byKeywords("Retur livrat la expeditor"), "FAILURE");
   assert.equal(byKeywords("ceva complet nou"), undefined);
 });
@@ -111,7 +113,7 @@ const quiet = { log() {}, warn() {} };
 test("sync: creates only changed statuses, skips delivered/not-picked-up/unchanged", async () => {
   const orders = [
     { name: "#A1", fulfillments: [ful("F1", "FAN RO", "7000000000001")] }, // -> DELIVERED
-    { name: "#A2", fulfillments: [ful("F2", "SameDay", "1INOLN000000002", [{ status: "OUT_FOR_DELIVERY", happenedAt: "2026-11-04T08:00:00Z" }])] }, // -> READY_FOR_PICKUP
+    { name: "#A2", fulfillments: [ful("F2", "SameDay", "1INOLN000000002", [{ status: "IN_TRANSIT", happenedAt: "2026-11-04T08:00:00Z" }])] }, // easybox -> OUT_FOR_DELIVERY
     { name: "#A3", fulfillments: [ful("F3", "Cargus RO", "1200000003", [{ status: "IN_TRANSIT", happenedAt: "2026-11-04T08:00:00Z" }])] }, // unchanged
     { name: "#A4", fulfillments: [ful("F4", "FAN RO", "7000000000004", [{ status: "DELIVERED", happenedAt: "2026-11-03T08:00:00Z" }])] }, // already delivered -> not even tracked
     { name: "#A5", fulfillments: [ful("F5", "FAN RO", "7000000000005")] }, // not picked up
@@ -131,7 +133,7 @@ test("sync: creates only changed statuses, skips delivered/not-picked-up/unchang
   const shopify = fakeShopify(orders);
   const { stats } = await run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
   assert.deepEqual(tracked.sort(), ["1200000003", "1INOLN000000002", "1INOLN000000007", "7000000000001", "7000000000005"].sort());
-  assert.deepEqual(shopify.created.map((e) => [e.fulfillmentId, e.status]).sort(), [["F1", "DELIVERED"], ["F2", "READY_FOR_PICKUP"], ["F7", "FAILURE"]]);
+  assert.deepEqual(shopify.created.map((e) => [e.fulfillmentId, e.status]).sort(), [["F1", "DELIVERED"], ["F2", "OUT_FOR_DELIVERY"], ["F7", "FAILURE"]]);
   const f1 = shopify.created.find((e) => e.fulfillmentId === "F1");
   assert.equal(f1.happenedAt, "2026-11-05T09:48:59.000Z");
   assert.equal(f1.city, "Bucuresti");
@@ -165,7 +167,7 @@ test("sync: stops the whole run on a permission error", async () => {
 });
 
 test("FAN S8 (ridicare din sediu) and Cargus empty page = not picked up", async () => {
-  assert.equal(mapEvent("fan", { code: "S8", text: "Livrare din sediul FAN Courier" }), "READY_FOR_PICKUP");
+  assert.equal(mapEvent("fan", { code: "S8", text: "Livrare din sediul FAN Courier" }), "OUT_FOR_DELIVERY");
   const { createTracker } = await import("../src/couriers.mjs");
   const track = createTracker({ gaps: { fan: 0, sameday: 0, cargus: 0 }, log: { warn() {} },
     fetchImpl: async () => new Response("<html>Te rugam sa introduci numarul</html>", { status: 200 }) });
@@ -191,4 +193,13 @@ test("sync: replaces orders-tracker.com links with the courier page, leaves corr
     ["L3", "https://www.cargus.ro/personal/urmareste-coletul/?tracking_number=1211507079"], // fixed even when delivered
   ]);
   assert.equal(stats.linksFixed, 3);
+});
+
+test("sync: re-labels an existing Ready for pickup at the same time as Out for delivery", async () => {
+  const at = "2026-11-14T16:06:53.000Z";
+  const orders = [{ name: "#R1", fulfillments: [ful("R1", "SameDay", "1INOLN000000011", [{ status: "READY_FOR_PICKUP", happenedAt: at }])] }];
+  const shopify = fakeShopify(orders);
+  const track = async () => ({ ok: true, events: [{ code: "18", text: "Colet incarcat in punctul de livrare", happenedAt: at }] });
+  await run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
+  assert.deepEqual(shopify.created.map((e) => e.status), ["OUT_FOR_DELIVERY"]);
 });

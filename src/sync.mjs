@@ -105,7 +105,7 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
       const curTime = cur ? Date.parse(cur.happenedAt) : 0;
       const tgtTime = target.happenedAt ? Date.parse(target.happenedAt) : Date.now();
       if (cur && cur.status === target.status) { stats.unchanged++; continue; }
-      if (cur && tgtTime <= curTime) { stats.unchanged++; continue; } // Shopify already has something newer
+      if (cur && tgtTime < curTime) { stats.unchanged++; continue; } // Shopify already has something newer
 
       const input = {
         fulfillmentId: c.f.id,
