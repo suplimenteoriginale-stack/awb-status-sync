@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><body>helper<script>
+const BASE='https://raw.githubusercontent.com/suplimenteoriginale-stack/awb-status-sync/smaltis-instagram-temp/p/';
+window.addEventListener('message',async e=>{
+  const d=e.data; if(!d||d.cmd!=='get') return;
+  try{const out=[];for(const f of d.files){const r=await fetch(BASE+f);out.push({name:f.split('/').pop(),buf:await r.arrayBuffer()});}
+  e.source.postMessage({cmd:'files',id:d.id,files:out},'*',out.map(o=>o.buf));}
+  catch(err){e.source.postMessage({cmd:'err',id:d.id,msg:String(err)},'*');}
+});
+parent.postMessage({cmd:'ready'},'*');
+</script>
