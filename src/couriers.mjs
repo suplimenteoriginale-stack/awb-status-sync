@@ -127,8 +127,13 @@ export function parseCargusHtml(html, awb) {
   const [, num, d, monName, y, hh, mm, status] = m;
   if (awb && num !== String(awb)) return { ok: false, retryable: true, error: `Cargus AWB diferit (${num})` };
   const mon = RO_MONTHS[monName.toLowerCase()];
-  const iso = mon ? roLocalToIso(`${y}-${String(mon).padStart(2, "0")}-${String(d).padStart(2, "0")} ${hh.padStart(2, "0")}:${mm}:00`) : null;
-  return { ok: true, events: [{ code: null, text: status.trim(), city: null, happenedAt: iso, progress: bar ? +bar[1] : null }] };
+  // Cargus prints a broken time: the "minutes" are the month number (always :10 in October, :11 in November)
+  // and the hour is 12h without AM/PM. Only the day is reliable, so we keep the date (at 12:00, never in the future)
+  // and let the sync stamp the event when it first sees the change.
+  void hh; void mm;
+  let iso = mon ? roLocalToIso(`${y}-${String(mon).padStart(2, "0")}-${String(d).padStart(2, "0")} 12:00:00`) : null;
+  if (iso && Date.parse(iso) > Date.now()) iso = new Date().toISOString();
+  return { ok: true, events: [{ code: null, text: status.trim(), city: null, happenedAt: iso, dateOnly: true, progress: bar ? +bar[1] : null }] };
 }
 
 function decodeEntities(s) {

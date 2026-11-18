@@ -59,7 +59,7 @@ test("cargus html parsing (real page)", () => {
   const p = parseCargusHtml(readFileSync(fx("cargus-delivered.html"), "utf8"), "1299990001");
   assert.ok(p.ok);
   assert.equal(p.events[0].text, "Livrat la destinatar (confirmat)");
-  assert.equal(p.events[0].happenedAt, "2026-10-30T09:10:00.000Z");
+  assert.equal(p.events[0].happenedAt, "2026-10-30T10:00:00.000Z"); // date only, 12:00 RO
   assert.equal(p.events[0].progress, 100);
   assert.equal(parseCargusHtml("<html>Te rugam sa introduci</html>", "1").ok, false);
 });
@@ -209,5 +209,17 @@ test("sync: replaces an old Carrier picked up even if the courier time is earlie
   const shopify = fakeShopify(orders);
   const track = async () => ({ ok: true, events: [{ text: "DF Iesire din depozit catre tranzit", happenedAt: "2026-11-13T08:11:00.000Z" }] });
   await run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
-  assert.deepEqual(shopify.created.map((e) => [e.status, e.happenedAt]), [["IN_TRANSIT", "2026-11-13T09:11:00Z"]]);
+  assert.deepEqual(shopify.created.map((e) => [e.status, e.happenedAt]), [["IN_TRANSIT", "2026-11-13T09:12:00.000Z"]]);
+});
+
+test("sync: Cargus Delivered with an earlier-looking date still replaces Out for delivery (#PRO21124005)", async () => {
+  const orders = [{ name: "#C5", fulfillments: [ful("C5", "Cargus RO", "1212422710", [{ status: "OUT_FOR_DELIVERY", happenedAt: "2026-11-12T05:11:00Z" }])] }];
+  const shopify = fakeShopify(orders);
+  const track = async () => ({ ok: true, events: [{ text: "Livrat la destinatar (confirmat)", happenedAt: "2026-11-12T10:00:00.000Z", dateOnly: true }] });
+  await run({ shopify, track, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
+  assert.deepEqual(shopify.created.map((e) => e.status), ["DELIVERED"]);
+  const track2 = async () => ({ ok: true, events: [{ text: "Livrat la destinatar (confirmat)", happenedAt: "2026-11-12T03:00:00.000Z", dateOnly: true }] });
+  const shopify2 = fakeShopify([{ name: "#C6", fulfillments: [ful("C6", "Cargus RO", "1212422711", [{ status: "OUT_FOR_DELIVERY", happenedAt: "2026-11-12T05:11:00Z" }])] }]);
+  await run({ shopify: shopify2, track: track2, out: quiet, cfg: { lookbackDays: 20, maxRuntimeMin: 5, onlyOrders: [], dryRun: false } });
+  assert.deepEqual(shopify2.created.map((e) => [e.status, e.happenedAt]), [["DELIVERED", "2026-11-12T05:12:00.000Z"]]);
 });

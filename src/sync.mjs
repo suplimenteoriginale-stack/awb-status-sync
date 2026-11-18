@@ -108,8 +108,11 @@ export async function run({ shopify, track, cfg = CFG, out = log } = {}) {
       // Statuses written before nov 15 that the Shopify order list doesn't show: always replace them,
       // stamped no earlier than the old event so the new one becomes the latest.
       const legacy = cur && ["READY_FOR_PICKUP", "CARRIER_PICKED_UP", "DELAYED"].includes(cur.status);
-      if (cur && tgtTime < curTime && !legacy) { stats.unchanged++; continue; } // Shopify already has something newer
-      if (legacy && tgtTime < curTime) target.happenedAt = cur.happenedAt;
+      // Cargus only shows its latest status and only a reliable date (see parseCargusHtml), so a changed
+      // Cargus status is always newer than what Shopify has: stamp it just after the previous event.
+      const dateOnly = !!target.dateOnly;
+      if (cur && tgtTime < curTime && !legacy && !dateOnly) { stats.unchanged++; continue; } // Shopify already has something newer
+      if (cur && tgtTime <= curTime && (legacy || dateOnly)) target.happenedAt = new Date(Math.min(curTime + 60_000, Date.now())).toISOString();
 
       const input = {
         fulfillmentId: c.f.id,
